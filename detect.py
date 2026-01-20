@@ -372,8 +372,7 @@ def extract_first_png_filename(driver):
 def is_meaningful_image(filename):
     """判断图片是否为有意义的头目图像（排除占位图）"""
     meaningless_keywords = [
-        'alpha', 'loading', 'blank', 'default', 'none',
-        'temp', 'placeholder', 'icon', 'logo'
+        'alpha', 'lanbizi'
     ]
     lower_name = filename.lower()
     return not any(kw in lower_name for kw in meaningless_keywords)
