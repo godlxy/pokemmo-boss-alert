@@ -10,7 +10,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 
 # === 配置区 ===
-URL = "https://pokemmo.lanbizi.com/"
+URL = "https://pokemmo.lanbizi.com/monster-alpha"
 SENDKEY = os.getenv("SENDKEY")  # 从 GitHub Secrets 获取
 DATA_FILE = "last_hash.txt"
 
