@@ -1,4 +1,4 @@
-# detect.py - 监控图片变化，并显示第一个 .png 的名称
+# detect.py - 显示倒数第二个 .png 图片的文件名
 import os
 import time
 import json
@@ -12,7 +12,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 # === 配置 ===
 URL = "https://pokemmo.lanbizi.com/monster-alpha"
 SENDKEY = os.getenv("SENDKEY")
-DATA_FILE = "last_images.json"  # 保存上次图片列表
+DATA_FILE = "last_images.json"
 
 
 def get_driver():
@@ -24,27 +24,27 @@ def get_driver():
     return webdriver.Chrome(service=service, options=options)
 
 
-def send_alert(first_png):
+def send_alert(penultimate_png):
     title = "🔥 有新的头目出现了"
-    content = f"最新刷新头目的图像：**{first_png}**\n\n请立即前往查看 >>\n🔗 [点击查看详情]({URL})"
+    content = f"倒数第二个头目图像：**{penultimate_png}**\n\n请立即前往查看 >>\n🔗 [点击查看详情]({URL})"
     try:
         requests.post(
             f"https://sctapi.ftqq.com/{SENDKEY}.send",
             data={"title": title, "desp": content},
             timeout=10
         )
-        print(f"✅ 已发送提醒：{first_png}")
+        print(f"✅ 已发送提醒：{penultimate_png}")
     except Exception as e:
         print("❌ 推送失败:", e)
 
 
 def extract_png_urls(driver):
-    """提取页面中所有 .png 图片地址"""
+    """提取所有 .png 图片 URL"""
     png_urls = []
     try:
-        time.sleep(6)  # 等待加载
+        time.sleep(6)
 
-        # 查找 <img> 标签
+        # 提取 <img> 标签中的 .png
         images = driver.find_elements("tag name", "img")
         for img in images:
             src = img.get_attribute("src")
@@ -53,7 +53,7 @@ def extract_png_urls(driver):
                 if clean_url not in png_urls:
                     png_urls.append(clean_url)
 
-        # 查找 CSS 背景图中的 .png
+        # 提取 CSS 背景图中的 .png
         if not png_urls:
             all_elems = driver.find_elements("css selector", "*")
             for elem in all_elems:
@@ -70,7 +70,7 @@ def extract_png_urls(driver):
     except Exception as e:
         print("⚠️ 图片提取失败:", e)
 
-    return sorted(png_urls)
+    return png_urls  # 保持原始顺序（通常是 DOM 出现顺序）
 
 
 def load_last_images():
@@ -99,18 +99,18 @@ if __name__ == "__main__":
         current_images = extract_png_urls(driver)
         last_images = load_last_images()
 
-        if not current_images:
-            print("🟡 未检测到任何 .png 图片")
+        if len(current_images) < 2:
+            print("🟡 图片少于2个，跳过提醒")
         elif set(current_images) != set(last_images):
-            # 有变化
-            first_png = current_images[0]  # 取第一个完整 URL
-
-            # 提取文件名（如 638.png）
-            filename = first_png.split('/')[-1]
-
-            print(f"🔔 检测到图片变化，首个新图为：{filename}")
-            send_alert(filename)  # 发微信，只显示文件名
-            save_images(current_images)
+            # 有变化 → 取倒数第二个
+            if len(current_images) >= 2:
+                penultimate_url = current_images[-2]  # 倒数第二个
+                filename = penultimate_url.split('/')[-1]  # 只取文件名
+                print(f"🔔 检测到变化，倒数第二个图为：{filename}")
+                send_alert(filename)
+                save_images(current_images)
+            else:
+                print("🟡 不足两个图片，无法获取倒数第二个")
         else:
             print("✅ 图片无变化")
 
