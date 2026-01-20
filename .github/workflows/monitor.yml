@@ -1,27 +1,21 @@
-name: 监控蓝鼻子头目报点
-
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '*/5 * * * *'   # 每5分钟执行一次（可改10或15）
+    - cron: '*/2 * * * *'   # 每2分钟检查一次
+  workflow_dispatch:
 
 jobs:
-  monitor:
-    name: 抓取并对比数据
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: 设置 Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
-      - name: 安装依赖
+      - name: Install deps
         run: |
-          pip install requests selenium webdriver-manager lxml
-
-      - name: 运行检测脚本
+          pip install selenium webdriver-manager requests
+      - name: Run script
         env:
-          SENDKEY: ${{ secrets.SENDKEY }}   # 密钥从Settings加载
+          SENDKEY: ${{ secrets.SENDKEY }}
         run: python detect.py
