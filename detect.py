@@ -1,4 +1,4 @@
-# detect.py - 显示倒数第二个 .png 图片的文件名
+# detect.py - 显示正数第二个 .png 图片的文件名
 import os
 import time
 import json
@@ -24,27 +24,27 @@ def get_driver():
     return webdriver.Chrome(service=service, options=options)
 
 
-def send_alert(penultimate_png):
+def send_alert(second_png):
     title = "🔥 有新的头目出现了"
-    content = f"倒数第二个头目图像：**{penultimate_png}**\n\n请立即前往查看 >>\n🔗 [点击查看详情]({URL})"
+    content = f"正数第二个头目图像：**{second_png}**\n\n请立即前往查看 >>\n🔗 [点击查看详情]({URL})"
     try:
         requests.post(
             f"https://sctapi.ftqq.com/{SENDKEY}.send",
             data={"title": title, "desp": content},
             timeout=10
         )
-        print(f"✅ 已发送提醒：{penultimate_png}")
+        print(f"✅ 已发送提醒：{second_png}")
     except Exception as e:
         print("❌ 推送失败:", e)
 
 
 def extract_png_urls(driver):
-    """提取所有 .png 图片 URL"""
+    """提取所有 .png 图片 URL（按页面中出现顺序）"""
     png_urls = []
     try:
         time.sleep(6)
 
-        # 提取 <img> 标签中的 .png
+        # 提取 <img> 标签中的 .png（保持顺序）
         images = driver.find_elements("tag name", "img")
         for img in images:
             src = img.get_attribute("src")
@@ -53,7 +53,7 @@ def extract_png_urls(driver):
                 if clean_url not in png_urls:
                     png_urls.append(clean_url)
 
-        # 提取 CSS 背景图中的 .png
+        # 如果 img 没抓到，尝试从 CSS 背景图提取（保留顺序较难，备用）
         if not png_urls:
             all_elems = driver.find_elements("css selector", "*")
             for elem in all_elems:
@@ -70,7 +70,7 @@ def extract_png_urls(driver):
     except Exception as e:
         print("⚠️ 图片提取失败:", e)
 
-    return png_urls  # 保持原始顺序（通常是 DOM 出现顺序）
+    return png_urls  # 保持 DOM 中的原始顺序
 
 
 def load_last_images():
@@ -99,18 +99,16 @@ if __name__ == "__main__":
         current_images = extract_png_urls(driver)
         last_images = load_last_images()
 
+        # 判断是否有足够图片
         if len(current_images) < 2:
             print("🟡 图片少于2个，跳过提醒")
         elif set(current_images) != set(last_images):
-            # 有变化 → 取倒数第二个
-            if len(current_images) >= 2:
-                penultimate_url = current_images[-2]  # 倒数第二个
-                filename = penultimate_url.split('/')[-1]  # 只取文件名
-                print(f"🔔 检测到变化，倒数第二个图为：{filename}")
-                send_alert(filename)
-                save_images(current_images)
-            else:
-                print("🟡 不足两个图片，无法获取倒数第二个")
+            # 有变化 → 取正数第二个（索引为 1）
+            second_url = current_images[1]  # 第二个元素
+            filename = second_url.split('/')[-1]  # 只取文件名部分
+            print(f"🔔 检测到变化，正数第二个图为：{filename}")
+            send_alert(filename)
+            save_images(current_images)
         else:
             print("✅ 图片无变化")
 
