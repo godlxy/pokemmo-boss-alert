@@ -323,7 +323,7 @@ POKEMON_ZH = {
 # === 配置 ===
 URL = "https://pokemmo.lanbizi.com/monster-alpha"
 SENDKEY = os.getenv("SENDKEY")
-DATA_FILE = "last_first_image.txt"  # 保存上一次第一个图片名称
+DATA_FILE = "last_first_image.txt"  # 记录上一次有效图片名称
 
 
 def get_driver():
@@ -336,11 +336,10 @@ def get_driver():
 
 
 def send_alert(pokemon_name=None):
+    title = "🔥 有新的头目出现了"
     if pokemon_name:
-        title = "🔥 有新的头目出现了"
         content = f"最新头目：**{pokemon_name}**\n\n请立即前往查看 >>\n🔗 [点击查看详情]({URL})"
     else:
-        title = "🔥 有新的头目出现了"
         content = "α头目列表已更新，请立即查看 >>\n\n🔗 [点击查看详情]({})".format(URL)
 
     try:
@@ -349,7 +348,7 @@ def send_alert(pokemon_name=None):
             data={"title": title, "desp": content},
             timeout=10
         )
-        print("✅ 提醒已发送")
+        print(f"✅ 提醒已发送")
     except Exception as e:
         print("❌ 推送失败:", e)
 
@@ -369,16 +368,19 @@ def extract_first_png_filename(driver):
     return None
 
 
-def is_meaningful_image(filename):
-    """判断图片是否为有意义的头目图像（排除占位图）"""
-    meaningless_keywords = [
-        'alpha', 'lanbizi'
-    ]
-    lower_name = filename.lower()
-    return not any(kw in lower_name for kw in meaningless_keywords)
+def is_blacklisted_name(filename):
+    """判断是否为黑名单中的无意义名称"""
+    black_keywords = ['alpha', 'loading', 'blank', 'default', 'none', 'temp', 'placeholder']
+    return any(kw in filename.lower() for kw in black_keywords)
 
 
-def get_pokedex_id_from_filename(filename):
+def has_numeric_id(filename):
+    """检查文件名是否包含数字（用于识别是编号图）"""
+    match = re.search(r'\d+', filename)
+    return bool(match)
+
+
+def get_dex_number(filename):
     """从文件名提取数字并除以100得图鉴编号"""
     match = re.search(r'(\d+)', filename)
     if match:
@@ -388,20 +390,20 @@ def get_pokedex_id_from_filename(filename):
 
 
 def get_pokemon_name(pokedex_id):
-    """查询宝可梦中文名"""
+    """查询中文名"""
     return POKEMON_ZH.get(pokedex_id, None)
 
 
-def load_last_image_name():
-    """读取上次记录的第一个图片名"""
+def load_last_image():
+    """读取上次记录的有效图片名"""
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
             return f.read().strip()
     return ""
 
 
-def save_image_name(name):
-    """保存当前第一个图片名"""
+def save_image(name):
+    """保存当前图片名"""
     with open(DATA_FILE, 'w', encoding='utf-8') as f:
         f.write(name)
 
@@ -414,7 +416,7 @@ if __name__ == "__main__":
         driver = get_driver()
         driver.get(URL)
 
-        # 获取当前第一个 .png 名称
+        # 获取当前第一个 .png 文件名
         current_filename = extract_first_png_filename(driver)
 
         if not current_filename:
@@ -423,25 +425,29 @@ if __name__ == "__main__":
 
         print(f"📄 当前首个图片: {current_filename}")
 
-        # 检查是否是“有意义”的图片
-        if not is_meaningful_image(current_filename):
-            print(f"🚫 跳过：图片为占位图 {current_filename}")
-            # 注意：这里不保存状态，避免阻断后续提醒
+        # 条件1：不能是黑名单名称（如 alpha.png）
+        if is_blacklisted_name(current_filename):
+            print(f"🚫 跳过：黑名单图片 {current_filename}")
             exit(0)
 
-        # 加载上次记录的图片名
-        last_filename = load_last_image_name()
+        # 条件2：必须包含数字
+        if not has_numeric_id(current_filename):
+            print(f"🚫 跳过：不含数字 {current_filename}")
+            exit(0)
 
-        # 如果和上次相同 → 不提醒
+        # 加载上次记录的状态
+        last_filename = load_last_image()
+
+        # 条件3：必须是“变化”
         if current_filename == last_filename:
-            print("✅ 图片无变化，跳过")
+            print("✅ 无变化，跳过")
             exit(0)
 
-        # --- 以下为有变化且是有效图片 ---
-        print(f"🔔 检测到有效更新：{last_filename} → {current_filename}")
+        # --- 满足全部条件：变化 + 非 alpha + 含数字 ---
+        print(f"🔔 检测到有效变化：{last_filename} → {current_filename}")
 
         # 尝试解析宝可梦名称
-        pokedex_id = get_pokedex_id_from_filename(current_filename)
+        pokedex_id = get_dex_number(current_filename)
         pokemon_name = None
 
         if pokedex_id:
@@ -449,15 +455,15 @@ if __name__ == "__main__":
             if pokemon_name:
                 print(f"🎯 解析成功：#{pokedex_id} → {pokemon_name}")
             else:
-                print(f"ℹ️ 未收录宝可梦编号：{pokedex_id}")
+                print(f"ℹ️ 图鉴未收录：#{pokedex_id}")
         else:
-            print("ℹ️ 无法从文件名解析编号")
+            print("ℹ️ 无法解析图鉴编号")
 
-        # 发送提醒（优先使用宝可梦名）
-        send_alert(pokemon_name or None)
+        # 发送微信提醒（优先使用宝可梦名）
+        send_alert(pokemon_name)
 
-        # 保存当前有效图片名
-        save_image_name(current_filename)
+        # 保存本次状态
+        save_image(current_filename)
 
     except Exception as e:
         print("❌ 错误:", str(e))
