@@ -1,39 +1,45 @@
 name: 监控 α 头目刷新
 
+# 触发方式：每5分钟自动运行 + 可手动点击运行
 on:
   schedule:
-    - cron: '*/59 * * * *'   # 每5分钟一次
-  workflow_dispatch:
+    - cron: '*/59 * * * *'   # 每5分钟一次（GitHub免费用户建议 ≥5分钟）
+  workflow_dispatch:           # 允许手动点击 "Run workflow"
 
 jobs:
   check:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
 
-      # 【关键】下载上次的状态文件
-      - name: 下载上一次数字和
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      # 【1】下载上一次的检测状态文件（关键步骤）
+      - name: 下载上次状态
+        id: cache-last-sum
         uses: actions/cache@v3
         with:
           path: last_three_sum.json
           key: data-last-three-sum
 
-      - name: Setup Python
+      - name: 设置 Python 环境
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Install deps
+      - name: 安装依赖库
         run: |
           pip install selenium webdriver-manager requests
 
-      - name: Run script
+      # 【2】运行主检测脚本
+      - name: 运行头目检测
         env:
           SENDKEY: ${{ secrets.SENDKEY }}
         run: python detect.py
 
-      # 【关键】上传本次生成的新状态
-      - name: 上传本次数字和
+      # 【3】上传本次生成的新状态（必须放在最后！）
+      - name: 上传本次状态
+        if: always()  # 即使前面报错也尝试上传，确保状态不丢失
         uses: actions/cache@v3
         with:
           path: last_three_sum.json
