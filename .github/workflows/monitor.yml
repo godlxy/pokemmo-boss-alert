@@ -1,4 +1,4 @@
-name: 监控 α 头目刷新
+name: alpha testing
 
 on:
   schedule:
