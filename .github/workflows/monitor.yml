@@ -1,13 +1,9 @@
-name: alpha testing
+name: 监控 α 头目刷新
 
 on:
   schedule:
-    - cron: '5 * * * *'  # 只保留一个占位任务（防被禁）
-  workflow_dispatch:     # 关键：允许外部触发
-    inputs:
-      manual:
-        description: 'Manual run trigger'
-        required: false
+    - cron: '*/59 * * * *'   # 每5分钟一次
+  workflow_dispatch:
 
 jobs:
   check:
@@ -15,7 +11,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: 下载上次状态
+      # 【关键】下载上次的状态文件
+      - name: 下载上一次数字和
         uses: actions/cache@v3
         with:
           path: last_three_sum.json
@@ -35,7 +32,8 @@ jobs:
           SENDKEY: ${{ secrets.SENDKEY }}
         run: python detect.py
 
-      - name: 上传本次状态
+      # 【关键】上传本次生成的新状态
+      - name: 上传本次数字和
         uses: actions/cache@v3
         with:
           path: last_three_sum.json
