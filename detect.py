@@ -323,7 +323,7 @@ POKEMON_ZH = {
 # === 配置 ===
 URL = "https://pokemmo.lanbizi.com/monster-alpha"
 SENDKEY = os.getenv("SENDKEY")
-DATA_FILE = "last_first_image.txt"  # 记录上一次有效图片名称
+DATA_FILE = "last_three_numbers.json"  # 保存上次前三个有效数字
 
 
 def get_driver():
@@ -335,77 +335,74 @@ def get_driver():
     return webdriver.Chrome(service=service, options=options)
 
 
-def send_alert(pokemon_name=None):
+def send_alert():
     title = "🔥 有新的头目出现了"
-    if pokemon_name:
-        content = f"最新头目：**{pokemon_name}**\n\n请立即前往查看 >>\n🔗 [点击查看详情]({URL})"
-    else:
-        content = "α头目列表已更新，请立即查看 >>\n\n🔗 [点击查看详情]({})".format(URL)
-
+    content = "α头目列表已更新，请立即查看 >>\n\n🔗 [点击查看详情]({})".format(URL)
     try:
         requests.post(
             f"https://sctapi.ftqq.com/{SENDKEY}.send",
             data={"title": title, "desp": content},
             timeout=10
         )
-        print(f"✅ 提醒已发送")
+        print("✅ 提醒已发送")
     except Exception as e:
         print("❌ 推送失败:", e)
 
 
-def extract_first_png_filename(driver):
-    """提取页面中第一个 .png 图片的文件名"""
+def extract_png_numbers(driver):
+    """提取页面中前三个 .png 图片文件名中的数字"""
+    numbers = []
     try:
         time.sleep(6)
         images = driver.find_elements("tag name", "img")
         for img in images:
             src = img.get_attribute("src")
-            if src and ".png" in src.lower():
-                filename = src.split('/')[-1].split('?')[0].strip()
-                return filename
+            if not src or ".png" not in src.lower():
+                continue
+            filename = src.split('/')[-1].split('?')[0].strip()
+
+            # 提取数字部分
+            match = re.search(r'(\d+)', filename)
+            if match:
+                num = int(match.group(1))
+                numbers.append(num)
+                if len(numbers) >= 3:  # 只取前3个
+                    break
     except Exception as e:
         print("⚠️ 提取图片失败:", e)
-    return None
+
+    # 补齐到3个（不足补0）
+    while len(numbers) < 3:
+        numbers.append(0)
+
+    return numbers[:3]
 
 
-def is_blacklisted_name(filename):
-    """判断是否为黑名单中的无意义名称"""
-    black_keywords = ['alpha', 'loading', 'blank', 'default', 'none', 'temp', 'placeholder']
-    return any(kw in filename.lower() for kw in black_keywords)
+def is_valid_number(n):
+    """判断数字是否符合要求：100~64900 且能被100整除"""
+    return 100 <= n <= 64900 and n % 100 == 0
 
 
-def has_numeric_id(filename):
-    """检查文件名是否包含数字（用于识别是编号图）"""
-    match = re.search(r'\d+', filename)
-    return bool(match)
+def all_valid(numbers):
+    """检查三个数字是否都有效"""
+    return all(is_valid_number(n) for n in numbers)
 
 
-def get_dex_number(filename):
-    """从文件名提取数字并除以100得图鉴编号"""
-    match = re.search(r'(\d+)', filename)
-    if match:
-        num = int(match.group(1))
-        return num // 100
-    return None
-
-
-def get_pokemon_name(pokedex_id):
-    """查询中文名"""
-    return POKEMON_ZH.get(pokedex_id, None)
-
-
-def load_last_image():
-    """读取上次记录的有效图片名"""
+def load_last_sum():
+    """加载上次三个数字之和（用于对比）"""
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            return f.read().strip()
-    return ""
+        with open(DATA_FILE, 'r') as f:
+            try:
+                return sum(eval(f.read()))
+            except:
+                return 0
+    return 0
 
 
-def save_image(name):
-    """保存当前图片名"""
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        f.write(name)
+def save_numbers(nums):
+    """保存当前三个数字"""
+    with open(DATA_FILE, 'w') as f:
+        f.write(str(nums))
 
 
 # 主逻辑
@@ -416,54 +413,29 @@ if __name__ == "__main__":
         driver = get_driver()
         driver.get(URL)
 
-        # 获取当前第一个 .png 文件名
-        current_filename = extract_first_png_filename(driver)
+        # 获取当前前三个 .png 的数字
+        current_nums = extract_png_numbers(driver)
+        current_sum = sum(current_nums)
 
-        if not current_filename:
-            print("🟡 未找到任何 .png 图片")
+        print(f"📊 当前前三数字: {current_nums} → 和为 {current_sum}")
+
+        # 检查是否全部有效
+        if not all_valid(current_nums):
+            print("🚫 存在无效数字，跳过提醒")
             exit(0)
 
-        print(f"📄 当前首个图片: {current_filename}")
+        # 加载上次记录的和
+        last_sum = load_last_sum()
 
-        # 条件1：不能是黑名单名称（如 alpha.png）
-        if is_blacklisted_name(current_filename):
-            print(f"🚫 跳过：黑名单图片 {current_filename}")
+        # 检查是否发生变化
+        if current_sum == last_sum:
+            print("✅ 数字和无变化，跳过")
             exit(0)
 
-        # 条件2：必须包含数字
-        if not has_numeric_id(current_filename):
-            print(f"🚫 跳过：不含数字 {current_filename}")
-            exit(0)
-
-        # 加载上次记录的状态
-        last_filename = load_last_image()
-
-        # 条件3：必须是“变化”
-        if current_filename == last_filename:
-            print("✅ 无变化，跳过")
-            exit(0)
-
-        # --- 满足全部条件：变化 + 非 alpha + 含数字 ---
-        print(f"🔔 检测到有效变化：{last_filename} → {current_filename}")
-
-        # 尝试解析宝可梦名称
-        pokedex_id = get_dex_number(current_filename)
-        pokemon_name = None
-
-        if pokedex_id:
-            pokemon_name = get_pokemon_name(pokedex_id)
-            if pokemon_name:
-                print(f"🎯 解析成功：#{pokedex_id} → {pokemon_name}")
-            else:
-                print(f"ℹ️ 图鉴未收录：#{pokedex_id}")
-        else:
-            print("ℹ️ 无法解析图鉴编号")
-
-        # 发送微信提醒（优先使用宝可梦名）
-        send_alert(pokemon_name)
-
-        # 保存本次状态
-        save_image(current_filename)
+        # --- 满足所有条件：有效 + 和不同 ---
+        print(f"🔔 检测到真实更新：{last_sum} → {current_sum}")
+        send_alert()
+        save_numbers(current_nums)
 
     except Exception as e:
         print("❌ 错误:", str(e))
