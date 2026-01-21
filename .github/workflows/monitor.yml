@@ -2,7 +2,7 @@ name: alpha testing
 
 on:
   schedule:
-    - cron: '0 * * * *'  # 只保留一个占位任务（防被禁）
+    - cron: '5 * * * *'  # 只保留一个占位任务（防被禁）
   workflow_dispatch:     # 关键：允许外部触发
     inputs:
       manual:
