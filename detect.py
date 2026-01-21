@@ -369,7 +369,6 @@ def send_alert(pokemon_name):
 
 
 def extract_first_png_filename(driver):
-    """提取第一个 .png 图片的文件名"""
     try:
         images = driver.find_elements("tag name", "img")
         for img in images:
@@ -383,7 +382,6 @@ def extract_first_png_filename(driver):
 
 
 def extract_top_three_numbers(driver):
-    """提取前三个 .png 文件名中的数字"""
     numbers = []
     try:
         time.sleep(6)
@@ -408,17 +406,14 @@ def extract_top_three_numbers(driver):
 
 
 def is_valid_number(n):
-    """检查是否是有效编号：100~64900 且整除100"""
     return 100 <= n <= 64900 and n % 100 == 0
 
 
 def all_valid(numbers):
-    """检查三个数字是否都有效"""
     return all(is_valid_number(n) for n in numbers)
 
 
 def get_pokedex_id_from_filename(filename):
-    """从文件名提取图鉴编号"""
     match = re.search(r'(\d+)', filename)
     if match:
         num = int(match.group(1))
@@ -427,12 +422,10 @@ def get_pokedex_id_from_filename(filename):
 
 
 def get_pokemon_name(pokedex_id):
-    """查询宝可梦中文名"""
     return POKEMON_ZH.get(pokedex_id, f"未知宝可梦 #{pokedex_id}")
 
 
 def load_last_numbers():
-    """加载上次记录的三个数字"""
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, 'r', encoding='utf-8') as f:
@@ -441,22 +434,19 @@ def load_last_numbers():
                 print(f"✅ 成功加载历史数组: {nums}")
                 return nums
         except (json.JSONDecodeError, OSError) as e:
-            print(f"⚠️ 读取 {DATA_FILE} 失败: {e} → 使用默认值 [0,0,0]")
+            print(f"⚠️ 读取失败: {e} → 使用默认值")
     else:
-        print(f"🔍 {DATA_FILE} 不存在 → 首次运行，使用默认值 [0,0,0]")
+        print("🔍 未找到状态文件 → 首次运行")
     return [0, 0, 0]
 
 
 def save_current_numbers(nums):
-    """保存当前三个数字"""
     try:
-        # 确保目录存在
-        os.makedirs(os.path.dirname(DATA_FILE) if os.path.dirname(DATA_FILE) else '.', exist_ok=True)
         with open(DATA_FILE, 'w', encoding='utf-8') as f:
             json.dump({"numbers": nums}, f, ensure_ascii=False, indent=2)
         print(f"💾 已保存当前数组: {nums}")
     except Exception as e:
-        print(f"❌ 保存失败 {DATA_FILE}: {e}")
+        print(f"❌ 保存失败: {e}")
 
 
 # 主逻辑
@@ -464,46 +454,35 @@ if __name__ == "__main__":
     driver = None
     try:
         print(f"[{datetime.now()}] 正在检查头目更新...")
+        
+        # 强制拉取最新状态（防止旧缓存）
+        os.system('git pull origin main || echo "首次运行，无远程状态"')
+
         driver = get_driver()
         driver.get(URL)
 
-        # 提取当前前三张图的数字
         current_numbers = extract_top_three_numbers(driver)
         print(f"📊 当前前三数字: {current_numbers}")
 
-        # 条件1：必须全部合法
         if not all_valid(current_numbers):
             print("🚫 存在无效数字，跳过提醒")
             exit(0)
 
-        # 加载上次状态
         last_numbers = load_last_numbers()
 
-        # 条件2：必须发生变化
         if current_numbers == last_numbers:
             print("✅ 数组无变化，跳过")
             exit(0)
 
-        # --- 满足所有条件：有效 + 不同 ---
         print(f"🔔 检测到真实更新：{last_numbers} → {current_numbers}")
 
-        # 获取第一个图片对应的宝可梦名称
         filename = extract_first_png_filename(driver)
-        if not filename:
-            pokemon_name = "新头目登场"
-        else:
-            pokedex_id = get_pokedex_id_from_filename(filename)
-            if pokedex_id:
-                pokemon_name = get_pokemon_name(pokedex_id)
-            else:
-                pokemon_name = "新头目登场"
+        pokedex_id = get_pokedex_id_from_filename(filename) if filename else None
+        pokemon_name = get_pokemon_name(pokedex_id) if pokedex_id else "新头目登场"
 
         print(f"🎯 将显示：{pokemon_name}")
-
-        # 发送提醒
         send_alert(pokemon_name)
 
-        # 保存本次状态
         save_current_numbers(current_numbers)
 
     except Exception as e:
