@@ -342,7 +342,7 @@ POKEMON_ZH = {
 # === 配置 ===
 URL = "https://pokemmo.lanbizi.com/monster-alpha"
 SENDKEY = os.getenv("SENDKEY")
-DATA_FILE = "last_three_sum.json"  # 持久化存储：前三张图数字之和
+DATA_FILE = "last_three_sum.json"  # 状态文件
 
 
 def get_driver():
@@ -369,7 +369,7 @@ def send_alert(pokemon_name):
 
 
 def extract_first_png_filename(driver):
-    """提取第一个 .png 图片的文件名（用于查宝可梦名）"""
+    """提取第一个 .png 图片的文件名"""
     try:
         images = driver.find_elements("tag name", "img")
         for img in images:
@@ -386,14 +386,13 @@ def extract_top_three_numbers(driver):
     """提取前三个 .png 文件名中的数字"""
     numbers = []
     try:
-        time.sleep(6)  # 等待加载
+        time.sleep(6)
         images = driver.find_elements("tag name", "img")
         for img in images:
             src = img.get_attribute("src")
             if not src or ".png" not in src.lower():
                 continue
             filename = src.split('/')[-1].split('?')[0].strip()
-
             match = re.search(r'(\d+)', filename)
             if match:
                 num = int(match.group(1))
@@ -403,15 +402,13 @@ def extract_top_three_numbers(driver):
     except Exception as e:
         print("⚠️ 提取前三数字失败:", e)
 
-    # 补齐为3个数（不足补0）
     while len(numbers) < 3:
         numbers.append(0)
-
     return numbers[:3]
 
 
 def is_valid_number(n):
-    """检查是否是有效编号：100~64900 且能被100整除"""
+    """检查是否是有效编号：100~64900 且整除100"""
     return 100 <= n <= 64900 and n % 100 == 0
 
 
@@ -421,7 +418,7 @@ def all_valid(numbers):
 
 
 def get_pokedex_id_from_filename(filename):
-    """从文件名提取图鉴编号，例如 35400.png → 354"""
+    """从文件名提取图鉴编号"""
     match = re.search(r'(\d+)', filename)
     if match:
         num = int(match.group(1))
@@ -434,29 +431,32 @@ def get_pokemon_name(pokedex_id):
     return POKEMON_ZH.get(pokedex_id, f"未知宝可梦 #{pokedex_id}")
 
 
-def load_last_sum():
-    """加载上次三个数字之和"""
+def load_last_numbers():
+    """加载上次记录的三个数字"""
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                return data.get("sum", 0)
-        except (json.JSONDecodeError, KeyError, OSError):
-            print("⚠️ 无法读取上一次状态，将使用默认值 0")
-            return 0
+                nums = data.get("numbers", [0, 0, 0])
+                print(f"✅ 成功加载历史数组: {nums}")
+                return nums
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"⚠️ 读取 {DATA_FILE} 失败: {e} → 使用默认值 [0,0,0]")
     else:
-        print("🔍 未找到历史记录，首次运行")
-        return 0
+        print(f"🔍 {DATA_FILE} 不存在 → 首次运行，使用默认值 [0,0,0]")
+    return [0, 0, 0]
 
 
-def save_current_sum(total_sum):
-    """保存本次三个数字之和"""
+def save_current_numbers(nums):
+    """保存当前三个数字"""
     try:
+        # 确保目录存在
+        os.makedirs(os.path.dirname(DATA_FILE) if os.path.dirname(DATA_FILE) else '.', exist_ok=True)
         with open(DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump({"sum": total_sum}, f, ensure_ascii=False, indent=2)
-        print(f"💾 已保存当前和：{total_sum}")
+            json.dump({"numbers": nums}, f, ensure_ascii=False, indent=2)
+        print(f"💾 已保存当前数组: {nums}")
     except Exception as e:
-        print("❌ 保存失败:", e)
+        print(f"❌ 保存失败 {DATA_FILE}: {e}")
 
 
 # 主逻辑
@@ -467,27 +467,25 @@ if __name__ == "__main__":
         driver = get_driver()
         driver.get(URL)
 
-        # 提取前三个图片中的数字
+        # 提取当前前三张图的数字
         current_numbers = extract_top_three_numbers(driver)
-        current_sum = sum(current_numbers)
-
-        print(f"📊 当前前三数字: {current_numbers} → 和为 {current_sum}")
+        print(f"📊 当前前三数字: {current_numbers}")
 
         # 条件1：必须全部合法
         if not all_valid(current_numbers):
             print("🚫 存在无效数字，跳过提醒")
             exit(0)
 
-        # 加载上次记录的和
-        last_sum = load_last_sum()
+        # 加载上次状态
+        last_numbers = load_last_numbers()
 
         # 条件2：必须发生变化
-        if current_sum == last_sum:
-            print("✅ 数字和无变化，跳过")
+        if current_numbers == last_numbers:
+            print("✅ 数组无变化，跳过")
             exit(0)
 
-        # --- 满足所有条件：有效 + 和不同 ---
-        print(f"🔔 检测到真实更新：{last_sum} → {current_sum}")
+        # --- 满足所有条件：有效 + 不同 ---
+        print(f"🔔 检测到真实更新：{last_numbers} → {current_numbers}")
 
         # 获取第一个图片对应的宝可梦名称
         filename = extract_first_png_filename(driver)
@@ -505,8 +503,8 @@ if __name__ == "__main__":
         # 发送提醒
         send_alert(pokemon_name)
 
-        # ✅ 关键：保存当前总和，供下次对比
-        save_current_sum(current_sum)
+        # 保存本次状态
+        save_current_numbers(current_numbers)
 
     except Exception as e:
         print("❌ 错误:", str(e))
