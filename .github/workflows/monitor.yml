@@ -1,6 +1,6 @@
 on:
   schedule:
-    - cron: '*/1 * * * *'   # 每1分钟检查一次
+    - cron: '*/3 * * * *'   # 每3分钟检查一次
   workflow_dispatch:
 
 jobs:
