@@ -2,8 +2,12 @@ name: alpha testing
 
 on:
   schedule:
-    - cron: '*/5 * * * *'   # 每5分钟一次
-  workflow_dispatch:
+    - cron: '0 * * * *'  # 只保留一个占位任务（防被禁）
+  workflow_dispatch:     # 关键：允许外部触发
+    inputs:
+      manual:
+        description: 'Manual run trigger'
+        required: false
 
 jobs:
   check:
@@ -11,7 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # 【新增】下载上一次保存的状态文件
       - name: 下载上次状态
         uses: actions/cache@v3
         with:
@@ -32,7 +35,6 @@ jobs:
           SENDKEY: ${{ secrets.SENDKEY }}
         run: python detect.py
 
-      # 【新增】上传本次生成的新状态
       - name: 上传本次状态
         uses: actions/cache@v3
         with:
