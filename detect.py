@@ -340,7 +340,7 @@ POKEMON_ZH = {
 }
 
 # === 配置 ===
-URL = "https://pokemmo.lanbizi.com/monster-alpha"
+URL = "https://pokemmo.lanbizi.com/damage"
 SENDKEY = os.getenv("SENDKEY")
 DATA_FILE = "last_three_sum.json"  # 状态文件
 
