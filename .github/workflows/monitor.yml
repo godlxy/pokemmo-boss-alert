@@ -2,33 +2,31 @@ name: 监控 α 头目刷新
 
 on:
   schedule:
-    - cron: '*/5 * * * *'   # 每5分钟一次
-  workflow_dispatch:           # 允许手动触发
+    - cron: '*/55 * * * *'   # 每5分钟一次
+  workflow_dispatch:
 
 jobs:
   check:
     runs-on: ubuntu-latest
 
     steps:
+      - name: 配置 Git 用户
+        run: |
+          git config --global user.name "alert-bot"
+          git config --global user.email "bot@example.com"
+
       - name: 检出代码
         uses: actions/checkout@v3
-
-      # 【1】下载上一次的状态
-      - name: 下载上次状态
-        id: cache-download
-        uses: actions/cache@v3
         with:
-          path: last_three_sum.json
-          key: data-last-three-sum
-          restore-keys: |
-            data-last-three-sum
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
-      - name: 设置 Python 环境
+      - name: 设置 Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: 安装依赖库
+      - name: 安装依赖
         run: |
           pip install selenium webdriver-manager requests
 
@@ -37,19 +35,12 @@ jobs:
           SENDKEY: ${{ secrets.SENDKEY }}
         run: python detect.py
 
-      # 【2】调试：查看文件是否生成
-      - name: Debug - 查看状态文件
+      - name: 检查是否有新状态提交
         run: |
-          echo "📁 当前目录:"
-          ls -la
-          echo ""
-          echo "📄 尝试读取 last_three_sum.json 内容:"
-          cat last_three_sum.json || echo "❌ 文件不存在或为空"
-
-      # 【3】上传本次状态（强制执行）
-      - name: 上传本次状态
-        if: always()  # 即使前面失败也尝试上传
-        uses: actions/cache@v3
-        with:
-          path: last_three_sum.json
-          key: data-last-three-sum
+          git add last_three_sum.json
+          if ! git diff --cached --quiet; then
+            git commit -m "[auto] 更新头目状态 $(date)"
+            git push origin main
+          else
+            echo "✅ 无变化，跳过提交"
+          fi
