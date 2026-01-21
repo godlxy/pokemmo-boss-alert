@@ -2,7 +2,7 @@ name: 监控 α 头目刷新
 
 on:
   schedule:
-    - cron: '*/55 * * * *'   # 每5分钟一次
+    - cron: '*/55 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -15,10 +15,11 @@ jobs:
           git config --global user.name "alert-bot"
           git config --global user.email "bot@example.com"
 
+      # 使用 PAT 替代默认 token
       - name: 检出代码
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.REPO_PAT }}   # ✅ 使用有写权限的 PAT
           fetch-depth: 0
 
       - name: 设置 Python
@@ -35,12 +36,13 @@ jobs:
           SENDKEY: ${{ secrets.SENDKEY }}
         run: python detect.py
 
-      - name: 检查是否有新状态提交
+      - name: 提交最新状态
         run: |
           git add last_three_sum.json
           if ! git diff --cached --quiet; then
             git commit -m "[auto] 更新头目状态 $(date)"
             git push origin main
+            echo "✅ 状态已提交"
           else
-            echo "✅ 无变化，跳过提交"
+            echo "🔍 无变化，跳过提交"
           fi
