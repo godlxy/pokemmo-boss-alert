@@ -2,7 +2,7 @@ name: 监控 α 头目刷新
 
 on:
   schedule:
-    - cron: '*/55 * * * *'   # 每5分钟一次（GitHub免费用户建议 ≥5分钟）
+    - cron: '*/5 * * * *'   # 每5分钟一次
   workflow_dispatch:           # 允许手动触发
 
 jobs:
@@ -13,7 +13,7 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v3
 
-      # 【1】下载上一次的状态（关键）
+      # 【1】下载上一次的状态
       - name: 下载上次状态
         id: cache-download
         uses: actions/cache@v3
@@ -37,9 +37,18 @@ jobs:
           SENDKEY: ${{ secrets.SENDKEY }}
         run: python detect.py
 
-      # 【2】上传本次生成的新状态（强制执行）
+      # 【2】调试：查看文件是否生成
+      - name: Debug - 查看状态文件
+        run: |
+          echo "📁 当前目录:"
+          ls -la
+          echo ""
+          echo "📄 尝试读取 last_three_sum.json 内容:"
+          cat last_three_sum.json || echo "❌ 文件不存在或为空"
+
+      # 【3】上传本次状态（强制执行）
       - name: 上传本次状态
-        if: always()  # 即使出错也尝试上传
+        if: always()  # 即使前面失败也尝试上传
         uses: actions/cache@v3
         with:
           path: last_three_sum.json
