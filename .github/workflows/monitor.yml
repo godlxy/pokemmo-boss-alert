@@ -1,6 +1,8 @@
+name: 监控 α 头目刷新
+
 on:
   schedule:
-    - cron: '*/3 * * * *'   # 每3分钟检查一次
+    - cron: '*/2 * * * *'   # 每2分钟一次
   workflow_dispatch:
 
 jobs:
@@ -8,14 +10,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
+      # 【新增】下载上一次保存的状态文件
+      - name: 下载上次状态
+        uses: actions/cache@v3
+        with:
+          path: last_three_sum.json
+          key: data-last-three-sum
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+
       - name: Install deps
         run: |
           pip install selenium webdriver-manager requests
+
       - name: Run script
         env:
           SENDKEY: ${{ secrets.SENDKEY }}
         run: python detect.py
+
+      # 【新增】上传本次生成的新状态
+      - name: 上传本次状态
+        uses: actions/cache@v3
+        with:
+          path: last_three_sum.json
+          key: data-last-three-sum
