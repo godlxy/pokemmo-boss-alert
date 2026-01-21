@@ -2,7 +2,7 @@ name: alpha testing
 
 on:
   schedule:
-    - cron: '*/2 * * * *'   # 每2分钟一次
+    - cron: '*/3 * * * *'   # 每3分钟一次
   workflow_dispatch:
 
 jobs:
